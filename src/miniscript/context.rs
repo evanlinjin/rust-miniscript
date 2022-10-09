@@ -222,6 +222,7 @@ where
 
     /// Depending on script context, the size of a satifaction witness may slightly differ.
     fn max_satisfaction_size<Pk: MiniscriptKey>(ms: &Miniscript<Pk, Self>) -> Option<usize>;
+
     /// Depending on script Context, some of the Terminals might not
     /// be valid under the current consensus rules.
     /// Or some of the script resource limits may have been exceeded.

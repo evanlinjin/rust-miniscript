@@ -254,20 +254,26 @@ impl<Pk: MiniscriptKey> Tr<Pk> {
         Ok(())
     }
 
-    /// Computes an upper bound on the weight of a satisfying witness to the
-    /// transaction.
+    /// Computes an upper bound on the difference in weight between a
+    /// non-satisfied `TxIn` (with empty `scriptSig` and `witness` fields) and a
+    /// satisfied `TxIn`.
     ///
-    /// Assumes all ec-signatures are 73 bytes, including push opcode and
-    /// sighash suffix. Includes the weight of the VarInts encoding the
-    /// scriptSig and witness stack length.
+    /// Assumes a ec-signature is 73 bytes and the sigHash suffix is always
+    /// included (+1 byte).
     ///
     /// # Errors
     /// When the descriptor is impossible to safisfy (ex: sh(OP_FALSE)).
     pub fn max_satisfaction_weight(&self) -> Result<usize, Error> {
         let tree = match self.taptree() {
-            // key spend path:
-            // scriptSigLen(4) + stackLen(1) + stack[Sig]Len(1) + stack[Sig](65)
-            None => return Ok(4 + 1 + 1 + 65),
+            None => {
+                // key spend path
+                // item: varint(sig+sigHash) + <sig(74)+sigHash(1)>
+                let item_sig_size = 1 + 65;
+                // 1 stack item
+                let stack_varint_diff = varint_len(1) - varint_len(0);
+
+                return Ok(stack_varint_diff + item_sig_size);
+            }
             // script path spend..
             Some(tree) => tree,
         };
@@ -278,11 +284,12 @@ impl<Pk: MiniscriptKey> Tr<Pk> {
                 let max_sat_elems = ms.max_satisfaction_witness_elements().ok()?;
                 let max_sat_size = ms.max_satisfaction_size().ok()?;
                 let control_block_size = control_block_len(depth);
+
+                // stack varint difference (+1 for ctrl block, witness script already included)
+                let stack_varint_diff = varint_len(max_sat_elems + 1) - varint_len(0);
+
                 Some(
-                    // scriptSig len byte
-                    4 +
-                    // witness field stack len (+2 for control block & script)
-                    varint_len(max_sat_elems + 2) +
+                    stack_varint_diff +
                     // size of elements to satisfy script
                     max_sat_size +
                     // second to last element: script

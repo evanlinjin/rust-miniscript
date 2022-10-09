@@ -84,17 +84,16 @@ impl<Pk: MiniscriptKey> Wsh<Pk> {
         Ok(())
     }
 
-    /// Computes an upper bound on the weight of a satisfying witness to the
-    /// transaction.
+    /// Computes an upper bound on the difference in weight between a
+    /// non-satisfied `TxIn` (with empty `scriptSig` and `witness` fields) and a
+    /// satisfied `TxIn`.
     ///
-    /// Assumes all ec-signatures are 73 bytes, including push opcode and
-    /// sighash suffix. Includes the weight of the VarInts encoding the
-    /// scriptSig and witness stack length.
+    /// Assumes a ec-signature is 73 bytes (inclusive of sigHash and op_push/varint).
     ///
     /// # Errors
     /// When the descriptor is impossible to safisfy (ex: sh(OP_FALSE)).
     pub fn max_satisfaction_weight(&self) -> Result<usize, Error> {
-        let (script_size, max_sat_elems, max_sat_size) = match self.inner {
+        let (redeem_script_size, max_sat_elems, max_sat_size) = match self.inner {
             WshInner::SortedMulti(ref smv) => (
                 smv.script_size(),
                 smv.max_satisfaction_witness_elements(),
@@ -106,11 +105,11 @@ impl<Pk: MiniscriptKey> Wsh<Pk> {
                 ms.max_satisfaction_size()?,
             ),
         };
-        Ok(4 +  // scriptSig length byte
-            varint_len(script_size) +
-            script_size +
-            varint_len(max_sat_elems) +
-            max_sat_size)
+        // stack size varint difference between non-satisfied (0) and satisfied
+        // `max_sat_elems` is inclusive of the "witness script" (redeem script)
+        let stack_varint_diff = varint_len(max_sat_elems) - varint_len(0);
+
+        Ok(stack_varint_diff + varint_len(redeem_script_size) + redeem_script_size + max_sat_size)
     }
 }
 
@@ -322,14 +321,17 @@ impl<Pk: MiniscriptKey> Wpkh<Pk> {
         }
     }
 
-    /// Computes an upper bound on the weight of a satisfying witness to the
-    /// transaction.
+    /// Computes an upper bound on the difference in weight between a
+    /// non-satisfied `TxIn` (with empty `scriptSig` and `witness` fields) and a
+    /// satisfied `TxIn`.
     ///
-    /// Assumes all ec-signatures are 73 bytes, including push opcode and
-    /// sighash suffix. Includes the weight of the VarInts encoding the
-    /// scriptSig and witness stack length.
+    /// Assumes a ec-signature is 73 bytes (inclusive of sigHash and op_push/varint).
     pub fn max_satisfaction_weight(&self) -> usize {
-        4 + 1 + 73 + Segwitv0::pk_len(&self.pk)
+        // stack items: <varint(sig+sigHash)> <sig(71)+sigHash(1)> <varint(pubkey)> <pubkey>
+        let stack_items_size = 73 + Segwitv0::pk_len(&self.pk);
+        // stackLen varint difference between non-satisfied (0) and satisfied
+        let stack_varint_diff = varint_len(2) - varint_len(0);
+        stack_varint_diff + stack_items_size
     }
 }
 

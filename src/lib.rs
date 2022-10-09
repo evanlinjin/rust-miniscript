@@ -74,7 +74,14 @@
 //! assert!(desc.sanity_check().is_ok());
 //!
 //! // Estimate the satisfaction cost
-//! assert_eq!(desc.max_satisfaction_weight().unwrap(), 293);
+//! // scriptSig:
+//! // * OP_0 OP_32 <32-byte-hash>
+//! // = (1 + 1 + 32) * 4 = 136 WU
+//! // redeemScript: varint <OP_33 <pk1> OP_CHECKSIG OP_IFDUP OP_NOTIF OP_33 <pk2> OP_CHECKSIG OP_ENDIF>
+//! // = 1 + (1 + 33 + 1 + 1 + 1 + 1 + 33 + 1 + 1) = 74 WU
+//! // stackItem[Sig]: varint <sig+sighash> = 1 + 72+1 = 74 WU (TODO: Figure out why sig is 72bytes here)
+//! // Expected satisfaction weight: 136 + 74 + 74 = 284
+//! assert_eq!(desc.max_satisfaction_weight().unwrap(), 284);
 //! ```
 //!
 

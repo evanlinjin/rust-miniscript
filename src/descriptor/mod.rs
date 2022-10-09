@@ -317,12 +317,22 @@ impl<Pk: MiniscriptKey> Descriptor<Pk> {
         }
     }
 
-    /// Computes an upper bound on the weight of a satisfying witness to the
-    /// transaction.
+    /// Computes an upper bound on the difference in weight between a
+    /// non-satisfied `TxIn` and a satisfied `TxIn`.
     ///
-    /// Assumes all ec-signatures are 73 bytes, including push opcode and
-    /// sighash suffix. Includes the weight of the VarInts encoding the
-    /// scriptSig and witness stack length.
+    /// A non-satisfied `TxIn` contains the `scriptSigLen` varint recording the
+    /// value 0 (which is 4WU) and also the `witnessStackLen` for transactions
+    /// that have at least one witness spend, which will also record the value 0
+    /// (which is 1WU).
+    ///
+    /// Hence, "satisfaction weight" contains the additional varint weight of
+    /// `scriptSigLen` and `witnessStackLen` (which occurs when the varint value
+    /// increases over the 1byte threshold), and also the weights of `scriptSig`
+    /// and the rest of the `witnessField` (which is the stack items and the
+    /// stack-item-len varints of each item).
+    ///
+    /// This assumes a ec-signatures is always 73 bytes, and the sighash prefix
+    /// is always included (+1 byte).
     ///
     /// # Errors
     /// When the descriptor is impossible to safisfy (ex: sh(OP_FALSE)).

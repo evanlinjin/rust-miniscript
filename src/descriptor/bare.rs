@@ -66,18 +66,16 @@ impl<Pk: MiniscriptKey> Bare<Pk> {
         Ok(())
     }
 
-    /// Computes an upper bound on the weight of a satisfying witness to the
-    /// transaction.
+    /// Computes an upper bound on the difference in weight between a
+    /// non-satisfied `TxIn` (with empty `scriptSig` and `witness` fields) and a
+    /// satisfied `TxIn`.
     ///
-    /// Assumes all ec-signatures are 73 bytes, including push opcode and
-    /// sighash suffix. Includes the weight of the VarInts encoding the
-    /// scriptSig and witness stack length.
-    ///
-    /// # Errors
-    /// When the descriptor is impossible to safisfy (ex: sh(OP_FALSE)).
+    /// Assumes a ec-signature is 73 bytes (inclusive of sigHash and op_push/varint).
     pub fn max_satisfaction_weight(&self) -> Result<usize, Error> {
-        let scriptsig_len = self.ms.max_satisfaction_size()?;
-        Ok(4 * (varint_len(scriptsig_len) + scriptsig_len))
+        let scriptsig_size = self.ms.max_satisfaction_size()?;
+        // scriptSig varint difference between non-satisfied (0) and satisfied
+        let scriptsig_varint_diff = varint_len(scriptsig_size) - varint_len(0);
+        Ok(4 * (scriptsig_varint_diff + scriptsig_size))
     }
 }
 
@@ -211,14 +209,17 @@ impl<Pk: MiniscriptKey> Pkh<Pk> {
         self.pk
     }
 
-    /// Computes an upper bound on the weight of a satisfying witness to the
-    /// transaction.
+    /// Computes an upper bound on the difference in weight between a
+    /// non-satisfied `TxIn` (with empty `scriptSig` and `witness` fields) and a
+    /// satisfied `TxIn`.
     ///
-    /// Assumes all ec-signatures are 73 bytes, including push opcode and
-    /// sighash suffix. Includes the weight of the VarInts encoding the
-    /// scriptSig and witness stack length.
+    /// Assumes a ec-signature is 73 bytes (inclusive of sigHash and op_push/varint).
     pub fn max_satisfaction_weight(&self) -> usize {
-        4 * (1 + 73 + BareCtx::pk_len(&self.pk))
+        // OP_72 + <sig(71)+sigHash(1)> + OP_33 + <pubkey>
+        let scriptsig_size = 73 + BareCtx::pk_len(&self.pk);
+        // scriptSig varint different between non-satisfied (0) and satisfied
+        let scriptsig_varint_diff = varint_len(scriptsig_size) - varint_len(0);
+        4 * (scriptsig_varint_diff + scriptsig_size)
     }
 }
 
